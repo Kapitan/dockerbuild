@@ -1,11 +1,18 @@
 version: '2'
 services:
   pim:
-    image: kapitanmf/tomcat8pim:31.08.2020.1
+    image: kapitanmf/tomcat8pim:04.09.2020newpostgres
+    #image: kapitanmf/tomcat8pim:01.09.2020
     logging:
       options:
-        max-size: "100m"   
+        max-size: "100m"
     restart: always
     ports:
       - 8082:8080
-                       
+    networks:
+      - local
+
+networks:
+  local:
+    external:
+      name: br0
