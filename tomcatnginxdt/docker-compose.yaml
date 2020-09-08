@@ -3,6 +3,9 @@ services:
   dtback:
     image: kapitanmf/tomcat8planogram:08.09.2020
     restart: always
+    logging:
+        options:
+          max-size: "100m"
     networks:
       - local
     ports:
@@ -13,6 +16,9 @@ services:
   dtfront:
     image: kapitanmf/nginx:1.19.timezonekiev2.7
     restart: always
+    logging:
+        options:
+          max-size: "100m"
     ports:
       - 8085:80
     networks:
