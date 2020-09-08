@@ -1,7 +1,7 @@
 version: '3'
 services:
   dtback:
-    image: kapitanmf/tomcat8:manager1.2
+    image: kapitanmf/tomcat8planogram:08.09.2020
     restart: always
     networks:
       - local
