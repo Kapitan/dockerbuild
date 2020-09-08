@@ -1,8 +1,7 @@
 version: '2'
 services:
   pim:
-    image: kapitanmf/tomcat8pim:04.09.2020newpostgres
-    #image: kapitanmf/tomcat8pim:01.09.2020
+    image: kapitanmf/tomcat8pim:08.09.2020
     logging:
       options:
         max-size: "100m"
