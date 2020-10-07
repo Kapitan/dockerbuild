@@ -1,4 +1,4 @@
-FROM tomcat:8.5.47
+FROM tomcat:9.0.37
 #RUN mkdir -p /usr/local/tomcat/conf
 
 ENV TZ 'Europe/Kiev'
