@@ -1,0 +1,212 @@
+---
+version: '2.4'
+
+services:
+  rabbitmq:
+    image: webitel/amqp:3.7
+    container_name: rabbitmq
+    ports:
+      - "172.17.0.1:15672:15672"
+      - "172.17.0.1:5672:5672"
+    environment:
+      - "RABBITMQ_DEFAULT_USER=webitel"
+      - "RABBITMQ_DEFAULT_PASS=${WEBITEL_PASS}"
+      - "RABBITMQ_NODENAME=node@rabbitmq"
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+    networks:
+      - wtel
+  mongo:
+    image: mongo:3.4
+    container_name: mongo
+    restart: always
+    volumes:
+      - "${WEBITEL_DIR}/mongodb:/data/db"
+    ports:
+      - "172.17.0.1:27017:27017"
+    command: --storageEngine wiredTiger --wiredTigerEngineConfigString="cache_size=1G"
+    networks:
+      - wtel
+    ulimits:
+      nproc: 65535
+      nofile: 65535
+    mem_limit: "${MONGO_MEMORY_LIMIT}"
+  postgres:
+    image: postgres:10.10-alpine
+    container_name: postgres
+    restart: always
+    environment:
+      - "POSTGRES_DB=webitel"
+      - "POSTGRES_USER=webitel"
+      - "POSTGRES_PASSWORD=webitel"
+    ports:
+      - "172.17.0.1:5432:5432"
+    volumes:
+      - "${WEBITEL_DIR}/pgsql:/var/lib/postgresql/data"
+    networks:
+      - wtel
+  kibana:
+    image: webitel/kibana:6.5.4
+    container_name: kibana
+    environment:
+      - "ENGINE_URL=${WEBITEL_PROTO}://${WEBITEL_HOST}/engine/"
+      - "FS_URL=${WEBITEL_WS}://${WEBITEL_HOST}/verto/"
+    ports:
+      - "5601"
+    networks:
+      - wtel
+  acr:
+    image: "webitel/acr:${WEBITEL_VERSION}"
+    container_name: acr
+    restart: always
+    env_file: "${DIR}/env/common"
+    environment:
+      - "broker:connectionString=amqp://webitel:${WEBITEL_PASS}@rabbitmq?heartbeat=0"
+    ports:
+      - "172.17.0.1:10030:10030"
+    depends_on:
+      - rabbitmq
+      - engine
+    networks:
+      - wtel
+  wconsole:
+    image: "webitel/wconsole:${WEBITEL_VERSION}"
+    container_name: wconsole
+    privileged: true
+    restart: always
+    env_file: "${DIR}/env/common"
+    environment:
+      - "ROOT_PASSWORD=${WEBITEL_PASS}"
+    volumes:
+      - "${WEBITEL_DIR}/db:/webitel/db"
+    ports:
+      - "172.17.0.1:10024:10024"
+    depends_on:
+      - mongo
+    networks:
+      - wtel
+  engine:
+    image: "webitel/engine:${WEBITEL_VERSION}"
+    container_name: engine
+    env_file: "${DIR}/env/common"
+    restart: always
+    ports:
+      - "172.17.0.1:10022:10022"
+    depends_on:
+      - mongo
+      - rabbitmq
+      - wconsole
+      - freeswitch
+    environment:
+      - "webitelServer:secret=${WEBITEL_PASS}"
+      - "cdrServer:host=http://172.17.0.1:10023"
+      #- "cdrServer:host=${WEBITEL_PROTO}://${WEBITEL_HOST}/cdr/"
+      - "freeSWITCH:verto=${WEBITEL_WS}://${WEBITEL_HOST}/verto/"
+      - "server:baseUrl=${WEBITEL_PROTO}://${WEBITEL_HOST}/engine/"
+      - "widget:baseUri=${WEBITEL_PROTO}://${WEBITEL_HOST}/widgets"
+      - "widget:publicWebRtc=${WEBITEL_WS}://${WEBITEL_HOST}/public/"
+      - "widget:publicPostApi=${WEBITEL_PROTO}://${WEBITEL_HOST}/callback/members"
+      - "broker:connectionString=amqp://webitel:${WEBITEL_PASS}@rabbitmq?heartbeat=0"
+    volumes:
+      - "${WEBITEL_DIR}/ssl:/ssl"
+      - "${WEBITEL_DIR}/widgets:/webitel/widgets/domains"
+    networks:
+      - wtel
+  cdr:
+    image: "webitel/cdr-server:${WEBITEL_VERSION}"
+    container_name: cdr
+    restart: always
+    env_file:
+      - "${DIR}/env/common"
+      - "${DIR}/env/cdr"
+    environment:
+      - "elastic:httpAuth=kibana:kibana"
+      - "broker:account:connectionString=amqp://webitel:${WEBITEL_PASS}@rabbitmq?heartbeat=0"
+      - "broker:publisher:connectionString=amqp://webitel:${WEBITEL_PASS}@rabbitmq?heartbeat=0"
+      - "broker:receiver:connectionString=amqp://webitel:${WEBITEL_PASS}@rabbitmq?heartbeat=0"
+    depends_on:
+      - rabbitmq
+      - postgres
+    networks:
+      - wtel
+  storage:
+    image: "webitel/storage:${WEBITEL_VERSION}"
+    container_name: storage
+    restart: always
+    ports:
+      - "172.17.0.1:10021:10021"
+      - "172.17.0.1:10023:10023"
+      - "172.17.0.1:10025:10025"
+    env_file:
+      - "${DIR}/env/common"
+      - "${DIR}/env/storage"
+    environment:
+      - "elastic:httpAuth=kibana:kibana"
+      - "broker:connectionString=amqp://webitel:${WEBITEL_PASS}@rabbitmq?heartbeat=0"
+    volumes:
+      - "${WEBITEL_DIR}/recordings:/recordings"
+      - "${WEBITEL_DIR}/ssl:/ssl"
+    depends_on:
+      - mongo
+    networks:
+      - wtel
+  freeswitch:
+    image: webitel/freeswitch:1.6.20
+    container_name: freeswitch
+    restart: always
+    privileged: true
+    network_mode: "host"
+    ulimits:
+      nproc: -1
+      memlock: -1
+      nofile: 65536
+    env_file: "${DIR}/env/freeswitch"
+    volumes:
+      - fs-sounds:/sounds
+      - fs-data:/recordings
+      - "${WEBITEL_DIR}/ssl:/certs"
+      - "${WEBITEL_DIR}/lua:/scripts/lua"
+      - "${DIR}/env/drop-sip-uac:/drop-sip-uac:rw"
+      - "${DIR}/env/drop-from-ip:/drop-from-ip:rw"
+      - "${DIR}/env/allow-from-ip:/allow-from-ip:rw"
+    depends_on:
+      - rabbitmq
+      - postgres
+  geo:
+    image: "webitel/geo"
+    container_name: geo
+    restart: always
+    env_file: "${DIR}/env/common"
+    networks:
+      - wtel
+  nginx:
+    image: "webitel/nginx:${WEBITEL_VERSION}"
+    container_name: nginx
+    restart: always
+    env_file:
+      - "${DIR}/env/common"
+      - "${DIR}/env/storage"
+    environment:
+      - "WEBITEL_HOST=${WEBITEL_HOST}"
+      - "WEBITEL_SSL=${WEBITEL_SSL}"
+    volumes:
+      - "${WEBITEL_DIR}/ssl:/etc/nginx/ssl"
+      - "${WEBITEL_DIR}/widgets:/webitel/widgets/domains"
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - geo
+      - engine
+      - storage
+    networks:
+      - wtel
+
+volumes:
+  rabbitmq:
+  fs-sounds:
+  fs-data:
+
+networks:
+  wtel:
+    driver: bridge
