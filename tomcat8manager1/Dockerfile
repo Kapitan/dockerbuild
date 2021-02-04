@@ -15,5 +15,6 @@ COPY tomcat-users.xml /usr/local/tomcat/conf/
 COPY context.xml /usr/local/tomcat/conf/
 COPY context.xml /usr/local/tomcat/webapps/manager/META-INF/
 COPY web.xml /usr/local/tomcat/webapps/manager/WEB-INF/
+#COPY ROOT##*.war /usr/local/tomcat/webapps/
 
 CMD ["catalina.sh", "run"] 
