@@ -1,0 +1,27 @@
+version: '3'
+services:
+  rabbirmq:
+    image: rabbitmq:3-management 
+    restart: always
+    hostname: rabbit-kapitantest
+    logging:
+       options:
+         max-size: "100m"
+    networks:
+      - local
+    ports:
+      - 4369:4369
+      - 5671:5671
+      - 8672:5672
+      - 8085:15672
+      - 15691-15692:15691-15692
+     #- 25672:25672
+    volumes:
+     #- /docker/rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
+      - /docker/rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - /docker/rabbitmq/data:/var/lib/rabbitmq/mnesia/rabbit@rabbit-kapitantest
+      - /docker/rabbitmq/logs:/var/log/rabbitmq/log
+networks:
+  local:
+    external:
+      name: br0
